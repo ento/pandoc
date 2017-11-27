@@ -1,0 +1,7 @@
+[ Div ("",["note"],[])
+  [ Header 1 ("",[],[]) [Str "hello"]
+  , Div ("",[],[])
+    [ Para [Str "\n    <!DOCTYPE en-note SYSTEM \\\"http://xml.evernote.com/pub/enml2.dtd\\\">\n    <en-note><div>world</div></en-note>\n    \n    "]
+    ]
+  ]
+]
