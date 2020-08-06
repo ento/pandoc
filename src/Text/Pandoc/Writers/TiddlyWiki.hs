@@ -91,11 +91,7 @@ instance Default WriterState
 -- | Convert Pandoc to TiddlyWiki.
 writeTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> m Text
 writeTiddlyWiki opts document =
-  evalMD (pandocToTiddlyWiki opts{
-             writerWrapText = if isEnabled Ext_hard_line_breaks opts
-                              then WrapNone
-                              else writerWrapText opts }
-             document) def def
+  evalMD (pandocToTiddlyWiki opts document) def def
 
 pandocTitleBlock :: Doc Text -> [Doc Text] -> Doc Text -> Doc Text
 pandocTitleBlock tit auths dat =
@@ -1166,12 +1162,10 @@ inlineToTiddlyWiki opts il@(RawInline f str) = do
                 | otherwise -> renderEmpty
       | otherwise = renderEmpty
 inlineToTiddlyWiki opts LineBreak = do
-  if isEnabled Ext_hard_line_breaks opts
-     then return cr
-     else return $
-          if isEnabled Ext_escaped_line_breaks opts
-             then "\\" <> cr
-             else "  " <> cr
+  return $
+    if isEnabled Ext_escaped_line_breaks opts
+    then "\\" <> cr
+    else "  " <> cr
 inlineToTiddlyWiki _ Space = do
   escapeSpaces <- asks envEscapeSpaces
   return $ if escapeSpaces then "\\ " else space
