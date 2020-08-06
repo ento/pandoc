@@ -56,21 +56,13 @@ evalMD :: PandocMonad m => MD m a -> WriterEnv -> WriterState -> m a
 evalMD md env st = evalStateT (runReaderT md env) st
 
 data WriterEnv = WriterEnv { envInList          :: Bool
-                           , envVariant         :: TiddlyWikiVariant
                            , envRefShortcutable :: Bool
                            , envBlockLevel      :: Int
                            , envEscapeSpaces    :: Bool
                            }
 
-data TiddlyWikiVariant =
-      PlainText
-    | Commonmark
-    | TiddlyWiki
-    deriving (Show, Eq)
-
 instance Default WriterEnv
   where def = WriterEnv { envInList          = False
-                        , envVariant         = TiddlyWiki
                         , envRefShortcutable = True
                         , envBlockLevel      = 0
                         , envEscapeSpaces    = False
@@ -131,12 +123,6 @@ mmdTitleBlock (Context hashmap) =
                                         removeBlankLines y
         removeBlankLines x            = x
 
-plainTitleBlock :: Doc Text -> [Doc Text] -> Doc Text -> Doc Text
-plainTitleBlock tit auths dat =
-  tit <> cr <>
-  (hcat (intersperse (text "; ") auths)) <> cr <>
-  dat <> cr
-
 yamlMetadataBlock :: Context Text -> Doc Text
 yamlMetadataBlock v = "---" $$ (contextToYaml v) $$ "---"
 
@@ -188,7 +174,6 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   let colwidth = if writerWrapText opts == WrapAuto
                     then Just $ writerColumns opts
                     else Nothing
-  variant <- asks envVariant
   metadata <- metaToContext'
                (blockListToTiddlyWiki opts)
                (inlineListToTiddlyWiki opts)
@@ -197,9 +182,7 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   let authors' = fromMaybe [] $ getField "author" metadata
   let date' = fromMaybe empty $ getField "date" metadata
   let titleblock = case writerTemplate opts of
-                        Just _ | variant == PlainText ->
-                                 plainTitleBlock title' authors' date'
-                               | isEnabled Ext_yaml_metadata_block opts ->
+                        Just _ | isEnabled Ext_yaml_metadata_block opts ->
                                    yamlMetadataBlock metadata
                                | isEnabled Ext_pandoc_title_block opts ->
                                    pandocTitleBlock title' authors' date'
@@ -420,7 +403,6 @@ blockToTiddlyWiki' opts (Div attrs ils) = do
              attrs' = (id',classes',("markdown","1"):kvs')
 blockToTiddlyWiki' opts (Plain inlines) = do
   -- escape if para starts with ordered list marker
-  variant <- asks envVariant
   let escapeMarker = T.concatMap $ \x -> if x `elemText` ".()"
                                          then T.pack ['\\', x]
                                          else T.singleton x
@@ -428,19 +410,17 @@ blockToTiddlyWiki' opts (Plain inlines) = do
       startsWithSpace (SoftBreak:_) = True
       startsWithSpace _             = False
   let inlines' =
-        if variant == PlainText
-           then inlines
-           else case inlines of
-                  (Str t:ys)
-                    | (null ys || startsWithSpace ys)
-                    , beginsWithOrderedListMarker t
-                    -> RawInline (Format "markdown") (escapeMarker t):ys
-                  (Str t:_)
-                    | t == "+" || t == "-" ||
-                      (t == "%" && isEnabled Ext_pandoc_title_block opts &&
-                                   isEnabled Ext_all_symbols_escapable opts)
-                    -> RawInline (Format "markdown") "\\" : inlines
-                  _ -> inlines
+        case inlines of
+          (Str t:ys)
+            | (null ys || startsWithSpace ys)
+            , beginsWithOrderedListMarker t
+              -> RawInline (Format "markdown") (escapeMarker t):ys
+          (Str t:_)
+            | t == "+" || t == "-" ||
+              (t == "%" && isEnabled Ext_pandoc_title_block opts &&
+                isEnabled Ext_all_symbols_escapable opts)
+              -> RawInline (Format "markdown") "\\" : inlines
+          _ -> inlines
   contents <- inlineListToTiddlyWiki opts inlines'
   return $ contents <> cr
 -- title beginning with fig: indicates figure
@@ -461,36 +441,35 @@ blockToTiddlyWiki' opts (LineBlock lns) =
     return $ (vcat $ map (hang 2 (literal "| ")) mdLines) <> blankline
   else blockToTiddlyWiki opts $ linesToPara lns
 blockToTiddlyWiki' opts b@(RawBlock f str) = do
-  variant <- asks envVariant
   let Format fmt = f
-  let rawAttribBlock = return $
-         (literal "```{=" <> literal fmt <> "}") $$
-         literal str $$
-         (literal "```" <> literal "\n")
-  let renderEmpty = mempty <$ report (BlockNotRendered b)
-  case variant of
-    PlainText -> renderEmpty
-    _ | f `elem` ["markdown", "markdown_github", "markdown_phpextra",
-                  "markdown_mmd", "markdown_strict"] ->
-            return $ literal str <> literal "\n"
-      | isEnabled Ext_raw_attribute opts -> rawAttribBlock
-      | f `elem` ["html", "html5", "html4"] ->
-            case () of
-              _ | isEnabled Ext_markdown_attribute opts -> return $
-                    literal (addTiddlyWikiAttribute str) <> literal "\n"
-                | isEnabled Ext_raw_html opts -> return $
-                    literal str <> literal "\n"
-                | isEnabled Ext_raw_attribute opts -> rawAttribBlock
-                | otherwise -> renderEmpty
-      | f `elem` ["latex", "tex"] ->
-            case () of
-              _ | isEnabled Ext_raw_tex opts -> return $
-                    literal str <> literal "\n"
-                | isEnabled Ext_raw_attribute opts -> rawAttribBlock
-                | otherwise -> renderEmpty
-      | otherwise -> renderEmpty
-blockToTiddlyWiki' opts HorizontalRule =
-  return $ blankline <> literal (T.replicate (writerColumns opts) "-") <> blankline
+  render' fmt
+  where
+    rawAttribBlock fmt =
+      return $ (literal "```" <> literal fmt) $$
+      literal str $$
+      (literal "```" <> literal "\n")
+    renderEmpty = mempty <$ report (BlockNotRendered b)
+    render' fmt
+      | f `elem` ["tiddlywiki"] =
+          return $ literal str <> literal "\n"
+      | isEnabled Ext_raw_attribute opts = rawAttribBlock fmt
+      | f `elem` ["html", "html5", "html4"] =
+          case () of
+            _ | isEnabled Ext_markdown_attribute opts ->
+                return $ literal (addTiddlyWikiAttribute str) <> literal "\n"
+              | isEnabled Ext_raw_html opts ->
+                return $ literal str <> literal "\n"
+              | isEnabled Ext_raw_attribute opts -> rawAttribBlock fmt
+              | otherwise -> renderEmpty
+      | f `elem` ["latex", "tex"] =
+          case () of
+            _ | isEnabled Ext_raw_tex opts ->
+                  return $ literal str <> literal "\n"
+              | isEnabled Ext_raw_attribute opts -> rawAttribBlock fmt
+              | otherwise -> renderEmpty
+      | otherwise = renderEmpty
+blockToTiddlyWiki' _opts HorizontalRule =
+  return $ blankline <> literal (T.replicate 3 "-") <> blankline
 blockToTiddlyWiki' opts (Header level attr inlines) = do
   -- first, if we're putting references at the end of a section, we
   -- put them here.
@@ -499,7 +478,6 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
           then notesAndRefs opts
           else return empty
 
-  variant <- asks envVariant
   -- we calculate the id that would be used by auto_identifiers
   -- so we know whether to print an explicit identifier
   ids <- gets stIds
@@ -517,30 +495,21 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
   contents <- inlineListToTiddlyWiki opts $
                  -- ensure no newlines; see #3736
                  walk lineBreakToSpace $
-                   if level == 1 && variant == PlainText &&
-                      isEnabled Ext_gutenberg opts
+                   if level == 1 && isEnabled Ext_gutenberg opts
                       then capitalize inlines
                       else inlines
   let setext = writerSetextHeaders opts
       hdr = nowrap $ case level of
-            1 | variant == PlainText ->
-                if isEnabled Ext_gutenberg opts
-                   then blanklines 3 <> contents <> blanklines 2
-                   else contents <> blankline
-              | setext ->
+            1 | setext ->
                   contents <> attr' <> cr <> literal (T.replicate (offset contents) "=") <>
                   blankline
-            2 | variant == PlainText ->
-                if isEnabled Ext_gutenberg opts
-                   then blanklines 2 <> contents <> blankline
-                   else contents <> blankline
-              | setext ->
+            2 | setext ->
                   contents <> attr' <> cr <> literal (T.replicate (offset contents) "-") <>
                   blankline
             -- ghc interprets '#' characters in column 1 as linenum specifiers.
-            _ | variant == PlainText || isEnabled Ext_literate_haskell opts ->
+            _ | isEnabled Ext_literate_haskell opts ->
                 contents <> blankline
-            _ -> literal (T.replicate level "#") <> space <> contents <> attr' <> blankline
+            _ -> literal (T.replicate level "!") <> space <> contents <> attr' <> blankline
 
   return $ refs <> hdr
 blockToTiddlyWiki' opts (CodeBlock (_,classes,_) str)
@@ -568,12 +537,11 @@ blockToTiddlyWiki' opts (CodeBlock attribs str) = return $
                                 (_,(cls:_),_) -> " " <> literal cls
                                 _             -> empty
 blockToTiddlyWiki' opts (BlockQuote blocks) = do
-  variant <- asks envVariant
   -- if we're writing literate haskell, put a space before the bird tracks
   -- so they won't be interpreted as lhs...
   let leader = if isEnabled Ext_literate_haskell opts
                   then " > "
-                  else if variant == PlainText then "  " else "> "
+                  else "> "
   contents <- blockListToTiddlyWiki opts blocks
   return $ (prefixed leader contents) <> blankline
 blockToTiddlyWiki' opts t@(Table _ blkCapt specs thead tbody tfoot) = do
@@ -806,8 +774,7 @@ definitionListItemToTiddlyWiki opts (label, defs) = do
   if isEnabled Ext_definition_lists opts
      then do
        let tabStop = writerTabStop opts
-       variant <- asks envVariant
-       let leader  = if variant == PlainText then "   " else ":  "
+       let leader  = ":  "
        let sps = case writerTabStop opts - 3 of
                       n | n > 0   -> literal $ T.replicate n " "
                       _ -> literal " "
@@ -836,7 +803,6 @@ blockListToTiddlyWiki :: PandocMonad m
                     -> MD m (Doc Text)
 blockListToTiddlyWiki opts blocks = do
   inlist <- asks envInList
-  variant <- asks envVariant
   -- a) insert comment between list and indented code block, or the
   -- code block will be treated as a list continuation paragraph
   -- b) change Plain to Para unless it's followed by a RawBlock
@@ -870,11 +836,9 @@ blockListToTiddlyWiki opts blocks = do
       isListBlock (OrderedList _ _)  = True
       isListBlock (DefinitionList _) = True
       isListBlock _                  = False
-      commentSep  = if variant == PlainText
-                       then Null
-                       else if isEnabled Ext_raw_html opts
-                            then RawBlock "html" "<!-- -->\n"
-                            else RawBlock "markdown" "&nbsp;\n"
+      commentSep  = if isEnabled Ext_raw_html opts
+                    then RawBlock "html" "<!-- -->\n"
+                    else RawBlock "markdown" "&nbsp;\n"
   mapM (blockToTiddlyWiki opts) (fixBlocks blocks) >>= return . mconcat
 
 getKey :: Doc Text -> Key
@@ -1025,56 +989,43 @@ inlineToTiddlyWiki opts (Span ("",["emoji"],kvs) [Str s]) =
             return $ ":" <> literal emojiname <> ":"
        _ -> inlineToTiddlyWiki opts (Str s)
 inlineToTiddlyWiki opts (Span attrs ils) = do
-  variant <- asks envVariant
   contents <- inlineListToTiddlyWiki opts ils
-  return $ case variant of
-                PlainText -> contents
-                _     | attrs == nullAttr -> contents
-                      | isEnabled Ext_bracketed_spans opts ->
-                        let attrs' = if attrs /= nullAttr
-                                        then attrsToTiddlyWiki attrs
-                                        else empty
-                        in "[" <> contents <> "]" <> attrs'
-                      | isEnabled Ext_raw_html opts ||
-                        isEnabled Ext_native_spans opts ->
-                        tagWithAttrs "span" attrs <> contents <> literal "</span>"
-                      | otherwise -> contents
+  return $ render' contents
+  where
+    render' contents
+      | attrs == nullAttr = contents
+      | isEnabled Ext_bracketed_spans opts =
+          let attrs' = if attrs /= nullAttr
+                       then attrsToTiddlyWiki attrs
+                       else empty
+          in "[" <> contents <> "]" <> attrs'
+      | isEnabled Ext_raw_html opts ||
+        isEnabled Ext_native_spans opts =
+          tagWithAttrs "span" attrs <> contents <> literal "</span>"
+      | otherwise = contents
 inlineToTiddlyWiki _ (Emph []) = return empty
 inlineToTiddlyWiki opts (Emph lst) = do
-  variant <- asks envVariant
   contents <- inlineListToTiddlyWiki opts lst
-  return $ case variant of
-             PlainText
-               | isEnabled Ext_gutenberg opts -> "_" <> contents <> "_"
-               | otherwise ->  contents
-             _ -> "*" <> contents <> "*"
+  return $ "//" <> contents <> "//"
 inlineToTiddlyWiki _ (Underline []) = return empty
 inlineToTiddlyWiki opts (Underline lst) = do
-  variant <- asks envVariant
   contents <- inlineListToTiddlyWiki opts lst
-  case variant of
-    PlainText -> return contents
-    _     | isEnabled Ext_bracketed_spans opts ->
-            return $ "[" <> contents <> "]" <> "{.ul}"
-          | isEnabled Ext_native_spans opts ->
-            return $ tagWithAttrs "span" ("", ["underline"], [])
-              <> contents
-              <> literal "</span>"
-          | isEnabled Ext_raw_html opts ->
-            return $ "<u>" <> contents <> "</u>"
-          | otherwise -> inlineToTiddlyWiki opts (Emph lst)
+  render' contents
+  where
+    render' contents
+      | isEnabled Ext_bracketed_spans opts =
+          return $ "[" <> contents <> "]" <> "{.ul}"
+      | isEnabled Ext_native_spans opts =
+          return $ tagWithAttrs "span" ("", ["underline"], [])
+          <> contents
+          <> literal "</span>"
+      | isEnabled Ext_raw_html opts =
+          return $ "<u>" <> contents <> "</u>"
+      | otherwise = inlineToTiddlyWiki opts (Emph lst)
 inlineToTiddlyWiki _ (Strong []) = return empty
 inlineToTiddlyWiki opts (Strong lst) = do
-  variant <- asks envVariant
-  case variant of
-    PlainText ->
-             inlineListToTiddlyWiki opts $
-               if isEnabled Ext_gutenberg opts
-                  then capitalize lst
-                  else lst
-    _ -> do
-       contents <- inlineListToTiddlyWiki opts lst
-       return $ "**" <> contents <> "**"
+  contents <- inlineListToTiddlyWiki opts lst
+  return $ "''" <> contents <> "''"
 inlineToTiddlyWiki _ (Strikeout []) = return empty
 inlineToTiddlyWiki opts (Strikeout lst) = do
   contents <- inlineListToTiddlyWiki opts lst
@@ -1085,7 +1036,7 @@ inlineToTiddlyWiki opts (Strikeout lst) = do
                        else contents
 inlineToTiddlyWiki _ (Superscript []) = return empty
 inlineToTiddlyWiki opts (Superscript lst) =
-  local (\env -> env {envEscapeSpaces = (envVariant env == TiddlyWiki)}) $ do
+  local (\env -> env {envEscapeSpaces = True}) $ do
     contents <- inlineListToTiddlyWiki opts lst
     if isEnabled Ext_superscript opts
        then return $ "^" <> contents <> "^"
@@ -1103,7 +1054,7 @@ inlineToTiddlyWiki opts (Superscript lst) =
                            Nothing -> literal $ "^(" <> rendered <> ")"
 inlineToTiddlyWiki _ (Subscript []) = return empty
 inlineToTiddlyWiki opts (Subscript lst) =
-  local (\env -> env {envEscapeSpaces = (envVariant env == TiddlyWiki)}) $ do
+  local (\env -> env {envEscapeSpaces = True}) $ do
     contents <- inlineListToTiddlyWiki opts lst
     if isEnabled Ext_subscript opts
        then return $ "~" <> contents <> "~"
@@ -1120,9 +1071,7 @@ inlineToTiddlyWiki opts (Subscript lst) =
                            Just r  -> literal $ T.pack r
                            Nothing -> literal $ "_(" <> rendered <> ")"
 inlineToTiddlyWiki opts (SmallCaps lst) = do
-  variant <- asks envVariant
-  if variant /= PlainText &&
-     (isEnabled Ext_raw_html opts || isEnabled Ext_native_spans opts)
+  if (isEnabled Ext_raw_html opts || isEnabled Ext_native_spans opts)
      then inlineToTiddlyWiki opts (Span ("",["smallcaps"],[]) lst)
      else inlineListToTiddlyWiki opts $ capitalize lst
 inlineToTiddlyWiki opts (Quoted SingleQuote lst) = do
@@ -1151,22 +1100,16 @@ inlineToTiddlyWiki opts (Code attr str) = do
   let attrs      = if isEnabled Ext_inline_code_attributes opts && attr /= nullAttr
                       then attrsToTiddlyWiki attr
                       else empty
-  variant <- asks envVariant
-  case variant of
-     PlainText -> return $ literal str
-     _     ->  return $ literal
-                  (marker <> spacer <> str <> spacer <> marker) <> attrs
+  return $ literal
+    (marker <> spacer <> str <> spacer <> marker) <> attrs
 inlineToTiddlyWiki opts (Str str) = do
-  variant <- asks envVariant
   let str' = (if writerPreferAscii opts
                  then toHtml5Entities
                  else id) .
              (if isEnabled Ext_smart opts
                  then unsmartify opts
                  else id) .
-             (if variant == PlainText
-                 then id
-                 else escapeText opts) $ str
+             (escapeText opts) $ str
   return $ literal str'
 inlineToTiddlyWiki opts (Math InlineMath str) =
   case writerHTMLMathMethod opts of
@@ -1179,10 +1122,8 @@ inlineToTiddlyWiki opts (Math InlineMath str) =
          | isEnabled Ext_tex_math_double_backslash opts ->
              return $ "\\\\(" <> literal str <> "\\\\)"
          | otherwise -> do
-             variant <- asks envVariant
              texMathToInlines InlineMath str >>=
-               inlineListToTiddlyWiki opts .
-                 (if variant == PlainText then makeMathPlainer else id)
+               inlineListToTiddlyWiki opts . id
 inlineToTiddlyWiki opts (Math DisplayMath str) =
   case writerHTMLMathMethod opts of
       WebTeX url -> (\x -> blankline <> x <> blankline) `fmap`
@@ -1198,35 +1139,34 @@ inlineToTiddlyWiki opts (Math DisplayMath str) =
             (texMathToInlines DisplayMath str >>= inlineListToTiddlyWiki opts)
 inlineToTiddlyWiki opts il@(RawInline f str) = do
   let tickGroups = filter (T.any (== '`')) $ T.group str
-  let numticks   = if null tickGroups
-                     then 1
-                     else 1 + maximum (map T.length tickGroups)
-  variant <- asks envVariant
+  let numticks = if null tickGroups
+                 then 1
+                 else 1 + maximum (map T.length tickGroups)
   let Format fmt = f
-  let rawAttribInline = return $
-         literal (T.replicate numticks "`") <> literal str <>
-         literal (T.replicate numticks "`") <> literal "{=" <> literal fmt <> literal "}"
-  let renderEmpty = mempty <$ report (InlineNotRendered il)
-  case variant of
-    PlainText -> renderEmpty
-    _ | f `elem` ["markdown", "markdown_github", "markdown_phpextra",
-                  "markdown_mmd", "markdown_strict"] ->
-            return $ literal str
-      | isEnabled Ext_raw_attribute opts -> rawAttribInline
-      | f `elem` ["html", "html5", "html4"] ->
+  render' fmt numticks
+  where
+    rawAttribInline fmt numticks  =
+      return $ literal (T.replicate numticks "`") <> literal str <>
+      literal (T.replicate numticks "`") <> literal "{=" <> literal fmt <> literal "}"
+    renderEmpty = mempty <$ report (InlineNotRendered il)
+    render' fmt numticks
+      | f `elem` ["markdown", "markdown_github", "markdown_phpextra",
+                  "markdown_mmd", "markdown_strict"] =
+          return $ literal str
+      | isEnabled Ext_raw_attribute opts = rawAttribInline fmt numticks
+      | f `elem` ["html", "html5", "html4"] =
             case () of
               _ | isEnabled Ext_raw_html opts -> return $ literal str
-                | isEnabled Ext_raw_attribute opts -> rawAttribInline
+                | isEnabled Ext_raw_attribute opts -> rawAttribInline fmt numticks
                 | otherwise -> renderEmpty
-      | f `elem` ["latex", "tex"] ->
+      | f `elem` ["latex", "tex"] =
             case () of
               _ | isEnabled Ext_raw_tex opts -> return $ literal str
-                | isEnabled Ext_raw_attribute opts -> rawAttribInline
+                | isEnabled Ext_raw_attribute opts -> rawAttribInline fmt numticks
                 | otherwise -> renderEmpty
-      | otherwise -> renderEmpty
+      | otherwise = renderEmpty
 inlineToTiddlyWiki opts LineBreak = do
-  variant <- asks envVariant
-  if variant == PlainText || isEnabled Ext_hard_line_breaks opts
+  if isEnabled Ext_hard_line_breaks opts
      then return cr
      else return $
           if isEnabled Ext_escaped_line_breaks opts
@@ -1279,7 +1219,6 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
     (literal . T.strip) <$>
       writeHtml5String opts{ writerTemplate = Nothing } (Pandoc nullMeta [Plain [lnk]])
   | otherwise = do
-  variant <- asks envVariant
   linktext <- inlineListToTiddlyWiki opts txt
   let linktitle = if T.null tit
                      then empty
@@ -1297,9 +1236,7 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
                 then literal <$> getReference attr linktext (src, tit)
                 else return mempty
   return $ if useAuto
-              then case variant of
-                     PlainText -> literal srcSuffix
-                     _ -> "<" <> literal srcSuffix <> ">"
+              then "<" <> literal srcSuffix <> ">"
               else if useRefLinks
                       then let first  = "[" <> linktext <> "]"
                                second = if getKey linktext == getKey reftext
@@ -1308,11 +1245,9 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
                                                    else "[]"
                                            else "[" <> reftext <> "]"
                            in  first <> second
-                      else case variant of
-                             PlainText -> linktext
-                             _ -> "[" <> linktext <> "](" <>
-                                   literal src <> linktitle <> ")" <>
-                                   linkAttributes opts attr
+                      else "[" <> linktext <> "](" <>
+                           literal src <> linktitle <> ")" <>
+                           linkAttributes opts attr
 inlineToTiddlyWiki opts img@(Image attr alternate (source, tit))
   | isEnabled Ext_raw_html opts &&
     not (isEnabled Ext_link_attributes opts) &&
@@ -1320,15 +1255,12 @@ inlineToTiddlyWiki opts img@(Image attr alternate (source, tit))
     (literal . T.strip) <$>
       writeHtml5String opts{ writerTemplate = Nothing } (Pandoc nullMeta [Plain [img]])
   | otherwise = do
-  variant <- asks envVariant
   let txt = if null alternate || alternate == [Str source]
                                  -- to prevent autolinks
                then [Str ""]
                else alternate
   linkPart <- inlineToTiddlyWiki opts (Link attr txt (source, tit))
-  return $ case variant of
-             PlainText -> "[" <> linkPart <> "]"
-             _     -> "!" <> linkPart
+  return $ "!" <> linkPart
 inlineToTiddlyWiki opts (Note contents) = do
   modify (\st -> st{ stNotes = contents : stNotes st })
   st <- get
@@ -1336,12 +1268,6 @@ inlineToTiddlyWiki opts (Note contents) = do
   if isEnabled Ext_footnotes opts
      then return $ "[^" <> ref <> "]"
      else return $ "[" <> ref <> "]"
-
-makeMathPlainer :: [Inline] -> [Inline]
-makeMathPlainer = walk go
-  where
-  go (Emph xs) = Span nullAttr xs
-  go x         = x
 
 lineBreakToSpace :: Inline -> Inline
 lineBreakToSpace LineBreak = Space
