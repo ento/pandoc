@@ -1,4 +1,8 @@
 type: text/vnd.tiddlywiki
+$if(titleblock)$
+$titleblock$
+
+$endif$
 $if(title)$
 title: $title$
 $endif$

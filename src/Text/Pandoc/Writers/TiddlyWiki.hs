@@ -93,14 +93,8 @@ writeTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> m Text
 writeTiddlyWiki opts document =
   evalMD (pandocToTiddlyWiki opts document) def def
 
-pandocTitleBlock :: Doc Text -> [Doc Text] -> Doc Text -> Doc Text
-pandocTitleBlock tit auths dat =
-  hang 2 (text "% ") tit <> cr <>
-  hang 2 (text "% ") (vcat $ map nowrap auths) <> cr <>
-  hang 2 (text "% ") dat <> cr
-
-mmdTitleBlock :: Context Text -> Doc Text
-mmdTitleBlock (Context hashmap) =
+tiddlyWikiFieldsBlock :: Context Text -> Doc Text
+tiddlyWikiFieldsBlock (Context hashmap) =
   vcat $ map go $ sortBy (comparing fst) $ M.toList hashmap
   where go (k,v) =
           case (text (T.unpack k), v) of
@@ -129,15 +123,8 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
                (blockListToTiddlyWiki opts)
                (inlineListToTiddlyWiki opts)
                meta
-  let title' = fromMaybe empty $ getField "title" metadata
-  let authors' = fromMaybe [] $ getField "author" metadata
-  let date' = fromMaybe empty $ getField "date" metadata
   let titleblock = case writerTemplate opts of
-                        Just _ | isEnabled Ext_pandoc_title_block opts ->
-                                   pandocTitleBlock title' authors' date'
-                               | isEnabled Ext_mmd_title_block opts ->
-                                   mmdTitleBlock metadata
-                               | otherwise -> empty
+                        Just _ -> tiddlyWikiFieldsBlock metadata
                         Nothing -> empty
   toc <- if writerTableOfContents opts
          then blockToTiddlyWiki opts ( toTableOfContents opts blocks )
