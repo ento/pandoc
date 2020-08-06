@@ -119,51 +119,6 @@ mmdTitleBlock (Context hashmap) =
                                         removeBlankLines y
         removeBlankLines x            = x
 
-yamlMetadataBlock :: Context Text -> Doc Text
-yamlMetadataBlock v = "---" $$ (contextToYaml v) $$ "---"
-
-contextToYaml :: Context Text -> Doc Text
-contextToYaml (Context o) =
-  vcat $ map keyvalToYaml $ sortBy (comparing fst) $ M.toList o
- where
-  keyvalToYaml (k,v) =
-          case (text (T.unpack k), v) of
-               (k', ListVal vs)
-                 | null vs        -> empty
-                 | otherwise      -> (k' <> ":") $$ valToYaml v
-               (k', MapVal (Context m))
-                 | M.null m       -> k' <> ": {}"
-                 | otherwise      -> (k' <> ":") $$ nest 2 (valToYaml v)
-               (_, SimpleVal x)
-                     | isEmpty x  -> empty
-               (_, NullVal)       -> empty
-               (k', _)            -> k' <> ":" <+> hang 2 "" (valToYaml v)
-
-valToYaml :: Val Text -> Doc Text
-valToYaml (ListVal xs) =
-  vcat $ map (\v -> hang 2 "- " (valToYaml v)) xs
-valToYaml (MapVal c) = contextToYaml c
-valToYaml (SimpleVal x)
-  | isEmpty x = empty
-  | otherwise =
-      if hasNewlines x
-         then hang 0 ("|" <> cr) x
-         else if any hasPunct x
-           then "'" <> fmap escapeSingleQuotes x <> "'"
-           else x
-    where
-      hasNewlines NewLine = True
-      hasNewlines BlankLines{} = True
-      hasNewlines CarriageReturn = True
-      hasNewlines (Concat w z) = hasNewlines w || hasNewlines z
-      hasNewlines _ = False
-      hasPunct = T.any isYamlPunct
-      isYamlPunct = (`elem` ['-','?',':',',','[',']','{','}',
-                             '#','&','*','!','|','>','\'','"',
-                             '%','@','`',',','[',']','{','}'])
-      escapeSingleQuotes = T.replace "'" "''"
-valToYaml _ = empty
-
 -- | Return markdown representation of document.
 pandocToTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> MD m Text
 pandocToTiddlyWiki opts (Pandoc meta blocks) = do
@@ -178,9 +133,7 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   let authors' = fromMaybe [] $ getField "author" metadata
   let date' = fromMaybe empty $ getField "date" metadata
   let titleblock = case writerTemplate opts of
-                        Just _ | isEnabled Ext_yaml_metadata_block opts ->
-                                   yamlMetadataBlock metadata
-                               | isEnabled Ext_pandoc_title_block opts ->
+                        Just _ | isEnabled Ext_pandoc_title_block opts ->
                                    pandocTitleBlock title' authors' date'
                                | isEnabled Ext_mmd_title_block opts ->
                                    mmdTitleBlock metadata
