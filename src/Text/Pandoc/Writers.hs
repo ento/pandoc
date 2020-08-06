@@ -115,6 +115,7 @@ import Text.Pandoc.Writers.RTF
 import Text.Pandoc.Writers.TEI
 import Text.Pandoc.Writers.Texinfo
 import Text.Pandoc.Writers.Textile
+import Text.Pandoc.Writers.TiddlyWiki
 import Text.Pandoc.Writers.XWiki
 import Text.Pandoc.Writers.ZimWiki
 import Text.Parsec.Error
@@ -169,6 +170,7 @@ writers = [
   ,("rst"          , TextWriter writeRST)
   ,("mediawiki"    , TextWriter writeMediaWiki)
   ,("dokuwiki"     , TextWriter writeDokuWiki)
+  ,("tiddlywiki"   , TextWriter writeTiddlyWiki)
   ,("xwiki"        , TextWriter writeXWiki)
   ,("zimwiki"      , TextWriter writeZimWiki)
   ,("textile"      , TextWriter writeTextile)

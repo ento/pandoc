@@ -67,6 +67,7 @@ data-files:
                  data/templates/default.plain
                  data/templates/default.mediawiki
                  data/templates/default.dokuwiki
+                 data/templates/default.tiddlywiki
                  data/templates/default.xwiki
                  data/templates/default.zimwiki
                  data/templates/default.rtf
@@ -540,6 +541,7 @@ library
                    Text.Pandoc.Writers.Textile,
                    Text.Pandoc.Writers.MediaWiki,
                    Text.Pandoc.Writers.DokuWiki,
+                   Text.Pandoc.Writers.TiddlyWiki,
                    Text.Pandoc.Writers.XWiki,
                    Text.Pandoc.Writers.ZimWiki,
                    Text.Pandoc.Writers.RTF,

@@ -177,7 +177,7 @@ tests pandocPath =
   , testGroup "other writers" $ map (\f -> testGroup f $ writerTests' f)
     [ "opendocument" , "context" , "texinfo", "icml", "tei"
     , "man" , "plain" , "rtf", "org", "asciidoc", "asciidoctor"
-    , "xwiki", "zimwiki"
+    , "xwiki", "zimwiki", "tiddlywiki"
     ]
   , testGroup "writers-lang-and-dir"
     [ test' "latex" ["-f", "native", "-t", "latex", "-s"]
