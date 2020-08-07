@@ -1043,8 +1043,7 @@ inlineToTiddlyWiki opts il@(RawInline f str) = do
       literal (T.replicate numticks "`") <> literal "{=" <> literal fmt <> literal "}"
     renderEmpty = mempty <$ report (InlineNotRendered il)
     render' fmt numticks
-      | f `elem` ["markdown", "markdown_github", "markdown_phpextra",
-                  "markdown_mmd", "markdown_strict"] =
+      | f `elem` ["tiddlywiki"] =
           return $ literal str
       | isEnabled Ext_raw_attribute opts = rawAttribInline fmt numticks
       | f `elem` ["html", "html5", "html4"] =
