@@ -342,12 +342,13 @@ blockToTiddlyWiki' opts (Para [Image attr alt (src,tgt@(T.stripPrefix "fig:" -> 
   | otherwise = blockToTiddlyWiki opts (Para [Image attr alt (src,tit)])
 blockToTiddlyWiki' opts (Para inlines) =
   (<> blankline) `fmap` blockToTiddlyWiki opts (Plain inlines)
-blockToTiddlyWiki' opts (LineBlock lns) =
-  if isEnabled Ext_line_blocks opts
-  then do
-    mdLines <- mapM (inlineListToTiddlyWiki opts) lns
-    return $ (vcat $ map (hang 2 (literal "| ")) mdLines) <> blankline
-  else blockToTiddlyWiki opts $ linesToPara lns
+blockToTiddlyWiki' opts (LineBlock lns) = do
+  let docify line = if null line
+                    then return blankline
+                    else inlineListToTiddlyWiki opts line
+  let joinWithLinefeeds = nowrap . mconcat . intersperse cr
+  contents <- joinWithLinefeeds <$> mapM docify lns
+  return $ literal "\"\"\"" $$ contents $$ literal "\"\"\"" $$ blankline
 blockToTiddlyWiki' opts b@(RawBlock f str) = do
   let Format fmt = f
   render' fmt
