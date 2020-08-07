@@ -55,14 +55,12 @@ evalMD :: PandocMonad m => MD m a -> WriterEnv -> WriterState -> m a
 evalMD md env st = evalStateT (runReaderT md env) st
 
 data WriterEnv = WriterEnv { envInList          :: Bool
-                           , envRefShortcutable :: Bool
                            , envBlockLevel      :: Int
                            , envEscapeSpaces    :: Bool
                            }
 
 instance Default WriterEnv
   where def = WriterEnv { envInList          = False
-                        , envRefShortcutable = True
                         , envBlockLevel      = 0
                         , envEscapeSpaces    = False
                         }
@@ -840,9 +838,7 @@ inlineListToTiddlyWiki opts lst = do
             _ -> shortcutable
           where shortcutable = liftM2 (<>) (inlineToTiddlyWiki opts i) (go is)
                 unshortcutable = do
-                    iMark <- local
-                             (\env -> env { envRefShortcutable = False })
-                             (inlineToTiddlyWiki opts i)
+                    iMark <- inlineToTiddlyWiki opts i
                     fmap (iMark <>) (go is)
                 thead = fmap fst . T.uncons
 
@@ -1035,9 +1031,6 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
                       [Str s] | escapeURI s == srcSuffix -> True
                       _       -> False
   let useRefLinks = writerReferenceLinks opts && not useAuto
-  shortcutable <- asks envRefShortcutable
-  let useShortcutRefLinks = shortcutable &&
-                            isEnabled Ext_shortcut_reference_links opts
   reftext <- if useRefLinks
                 then literal <$> getReference attr linktext (src, tit)
                 else return mempty
@@ -1046,9 +1039,7 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
               else if useRefLinks
                       then let first  = "[" <> linktext <> "]"
                                second = if getKey linktext == getKey reftext
-                                           then if useShortcutRefLinks
-                                                   then ""
-                                                   else "[]"
+                                           then "[]"
                                            else "[" <> reftext <> "]"
                            in  first <> second
                       else "[" <> linktext <> "](" <>
