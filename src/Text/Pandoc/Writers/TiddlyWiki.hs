@@ -1058,11 +1058,8 @@ inlineToTiddlyWiki opts il@(RawInline f str) = do
                 | isEnabled Ext_raw_attribute opts -> rawAttribInline fmt numticks
                 | otherwise -> renderEmpty
       | otherwise = renderEmpty
-inlineToTiddlyWiki opts LineBreak = do
-  return $
-    if isEnabled Ext_escaped_line_breaks opts
-    then "\\" <> cr
-    else "  " <> cr
+inlineToTiddlyWiki _ LineBreak = do
+  return $ "  " <> cr
 inlineToTiddlyWiki _ Space = do
   escapeSpaces <- asks envEscapeSpaces
   return $ if escapeSpaces then "\\ " else space
