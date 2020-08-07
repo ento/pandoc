@@ -979,10 +979,6 @@ inlineToTiddlyWiki opts (Math InlineMath str) =
                        (Image nullAttr [Str str] (url <> T.pack (urlEncode $ T.unpack str), str))
        _ | isEnabled Ext_tex_math_dollars opts ->
              return $ "$" <> literal str <> "$"
-         | isEnabled Ext_tex_math_single_backslash opts ->
-             return $ "\\(" <> literal str <> "\\)"
-         | isEnabled Ext_tex_math_double_backslash opts ->
-             return $ "\\\\(" <> literal str <> "\\\\)"
          | otherwise -> do
              texMathToInlines InlineMath str >>=
                inlineListToTiddlyWiki opts . id
@@ -993,10 +989,6 @@ inlineToTiddlyWiki opts (Math DisplayMath str) =
                     (url <> T.pack (urlEncode $ T.unpack str), str))
       _ | isEnabled Ext_tex_math_dollars opts ->
             return $ "$$" <> literal str <> "$$"
-        | isEnabled Ext_tex_math_single_backslash opts ->
-            return $ "\\[" <> literal str <> "\\]"
-        | isEnabled Ext_tex_math_double_backslash opts ->
-            return $ "\\\\[" <> literal str <> "\\\\]"
         | otherwise -> (\x -> cr <> x <> cr) `fmap`
             (texMathToInlines DisplayMath str >>= inlineListToTiddlyWiki opts)
 inlineToTiddlyWiki opts il@(RawInline f str) = do
