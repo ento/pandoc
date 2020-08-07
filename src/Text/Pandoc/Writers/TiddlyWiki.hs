@@ -403,10 +403,7 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
                      | otherwise -> empty
   contents <- inlineListToTiddlyWiki opts $
                  -- ensure no newlines; see #3736
-                 walk lineBreakToSpace $
-                   if level == 1 && isEnabled Ext_gutenberg opts
-                      then capitalize inlines
-                      else inlines
+                 walk lineBreakToSpace $ inlines
   let setext = writerSetextHeaders opts
       hdr = nowrap $ case level of
             1 | setext ->
