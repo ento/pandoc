@@ -412,16 +412,9 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
             2 | setext ->
                   contents <> attr' <> cr <> literal (T.replicate (offset contents) "-") <>
                   blankline
-            -- ghc interprets '#' characters in column 1 as linenum specifiers.
-            _ | isEnabled Ext_literate_haskell opts ->
-                contents <> blankline
             _ -> literal (T.replicate level "!") <> space <> contents <> attr' <> blankline
 
   return $ refs <> hdr
-blockToTiddlyWiki' opts (CodeBlock (_,classes,_) str)
-  | "haskell" `elem` classes && "literate" `elem` classes &&
-    isEnabled Ext_literate_haskell opts =
-  return $ prefixed "> " (literal str) <> blankline
 blockToTiddlyWiki' opts (CodeBlock attribs str) = return $
   case attribs == nullAttr of
      False | isEnabled Ext_backtick_code_blocks opts ->
@@ -443,11 +436,7 @@ blockToTiddlyWiki' opts (CodeBlock attribs str) = return $
                                 (_,(cls:_),_) -> " " <> literal cls
                                 _             -> empty
 blockToTiddlyWiki' opts (BlockQuote blocks) = do
-  -- if we're writing literate haskell, put a space before the bird tracks
-  -- so they won't be interpreted as lhs...
-  let leader = if isEnabled Ext_literate_haskell opts
-                  then " > "
-                  else "> "
+  let leader = "> "
   contents <- blockListToTiddlyWiki opts blocks
   return $ (prefixed leader contents) <> blankline
 blockToTiddlyWiki' opts t@(Table _ blkCapt specs thead tbody tfoot) = do
