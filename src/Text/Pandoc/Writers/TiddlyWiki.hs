@@ -113,7 +113,7 @@ tiddlyWikiFieldsBlock (Context hashmap) =
                                         removeBlankLines y
         removeBlankLines x            = x
 
--- | Return markdown representation of document.
+-- | Return tiddlywiki representation of document.
 pandocToTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> MD m Text
 pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   let colwidth = if writerWrapText opts == WrapAuto
@@ -147,11 +147,11 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
        Nothing  -> main
        Just tpl -> renderTemplate tpl context
 
--- | Return markdown representation of reference key table.
+-- | Return tiddlywiki representation of reference key table.
 refsToTiddlyWiki :: PandocMonad m => WriterOptions -> Refs -> MD m (Doc Text)
 refsToTiddlyWiki opts refs = mapM (keyToTiddlyWiki opts) refs >>= return . vcat
 
--- | Return markdown representation of a reference key.
+-- | Return tiddlywiki representation of a reference key.
 keyToTiddlyWiki :: PandocMonad m
               => WriterOptions
               -> Ref
@@ -164,7 +164,7 @@ keyToTiddlyWiki opts (label', (src, tit), attr) = do
             ("[" <> literal label' <> "]:" <> space) (literal src <> tit')
             <+> linkAttributes opts attr
 
--- | Return markdown representation of notes.
+-- | Return tiddlywiki representation of notes.
 notesToTiddlyWiki :: PandocMonad m => WriterOptions -> [[Block]] -> MD m (Doc Text)
 notesToTiddlyWiki opts notes = do
   n <- gets stNoteNum
@@ -172,7 +172,7 @@ notesToTiddlyWiki opts notes = do
   modify $ \st -> st { stNoteNum = stNoteNum st + length notes }
   return $ vsep notes'
 
--- | Return markdown representation of a note.
+-- | Return tiddlywiki representation of a note.
 noteToTiddlyWiki :: PandocMonad m => WriterOptions -> Int -> [Block] -> MD m (Doc Text)
 noteToTiddlyWiki opts num blocks = do
   contents  <- blockListToTiddlyWiki opts blocks
@@ -286,7 +286,7 @@ notesAndRefs opts = do
     (if isEmpty refs' then empty else blankline <> refs') <>
     endSpacing
 
--- | Convert Pandoc block element to markdown.
+-- | Convert Pandoc block element to tiddlywiki.
 blockToTiddlyWiki :: PandocMonad m
                 => WriterOptions -- ^ Options
                 -> Block         -- ^ Block element
@@ -652,7 +652,7 @@ itemEndsWithTightList bs =
         [Plain _, OrderedList _ xs] -> isTightList xs
         _                           -> False
 
--- | Convert bullet list item (list of blocks) to markdown.
+-- | Convert bullet list item (list of blocks) to tiddlywiki.
 bulletListItemToTiddlyWiki :: PandocMonad m => WriterOptions -> [Block] -> MD m (Doc Text)
 bulletListItemToTiddlyWiki opts bs = do
   let exts = writerExtensions opts
@@ -665,7 +665,7 @@ bulletListItemToTiddlyWiki opts bs = do
                      else contents
   return $ hang (writerTabStop opts) start contents'
 
--- | Convert ordered list item (a list of blocks) to markdown.
+-- | Convert ordered list item (a list of blocks) to tiddlywiki.
 orderedListItemToTiddlyWiki :: PandocMonad m
                           => WriterOptions -- ^ options
                           -> Text        -- ^ list item marker
@@ -687,7 +687,7 @@ orderedListItemToTiddlyWiki opts marker bs = do
                      else contents
   return $ hang ind start contents'
 
--- | Convert definition list item (label, list of blocks) to markdown.
+-- | Convert definition list item (label, list of blocks) to tiddlywiki.
 definitionListItemToTiddlyWiki :: PandocMonad m
                              => WriterOptions
                              -> ([Inline],[[Block]])
@@ -720,7 +720,7 @@ definitionListItemToTiddlyWiki opts (label, defs) = do
        return $ nowrap (chomp labelText <> literal "  " <> cr) <>
                 vsep (map vsep defs') <> blankline
 
--- | Convert list of Pandoc block elements to markdown.
+-- | Convert list of Pandoc block elements to tiddlywiki.
 blockListToTiddlyWiki :: PandocMonad m
                     => WriterOptions -- ^ Options
                     -> [Block]       -- ^ List of block elements
@@ -834,7 +834,7 @@ getReference attr label target = do
                                          (stKeys s) })
                     return lab'
 
--- | Convert list of Pandoc inline elements to markdown.
+-- | Convert list of Pandoc inline elements to tiddlywiki.
 inlineListToTiddlyWiki :: PandocMonad m => WriterOptions -> [Inline] -> MD m (Doc Text)
 inlineListToTiddlyWiki opts lst = do
   inlist <- asks envInList
@@ -905,7 +905,7 @@ isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight (Left  _) = False
 
--- | Convert Pandoc inline element to markdown.
+-- | Convert Pandoc inline element to tiddlywiki.
 inlineToTiddlyWiki :: PandocMonad m => WriterOptions -> Inline -> MD m (Doc Text)
 inlineToTiddlyWiki opts (Span ("",["emoji"],kvs) [Str s]) =
   case lookup "data-emoji" kvs of
