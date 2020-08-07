@@ -195,7 +195,7 @@ escapeText opts = T.pack . go . T.unpack
               '\\' : '>' : go cs
            | otherwise -> "&gt;" ++ go cs
        _ | c `elem` ['\\','`','*','_','[',']','#'] ->
-              '\\':c:go cs
+              "<$text text='" ++ c:"'/>" ++ go cs
        '|' | isEnabled Ext_pipe_tables opts -> '\\':'|':go cs
        '^' -> "<$text text='^'/>" ++ go cs
        '~' -> "<$text text='~'/>" ++ go cs
@@ -899,18 +899,7 @@ inlineToTiddlyWiki opts (Emph lst) = do
 inlineToTiddlyWiki _ (Underline []) = return empty
 inlineToTiddlyWiki opts (Underline lst) = do
   contents <- inlineListToTiddlyWiki opts lst
-  render' contents
-  where
-    render' contents
-      | isEnabled Ext_bracketed_spans opts =
-          return $ "[" <> contents <> "]" <> "{.ul}"
-      | isEnabled Ext_native_spans opts =
-          return $ tagWithAttrs "span" ("", ["underline"], [])
-          <> contents
-          <> literal "</span>"
-      | isEnabled Ext_raw_html opts =
-          return $ "<u>" <> contents <> "</u>"
-      | otherwise = inlineToTiddlyWiki opts (Emph lst)
+  return $ "__" <> contents <> "__"
 inlineToTiddlyWiki _ (Strong []) = return empty
 inlineToTiddlyWiki opts (Strong lst) = do
   contents <- inlineListToTiddlyWiki opts lst
