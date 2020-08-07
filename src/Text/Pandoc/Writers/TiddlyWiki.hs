@@ -43,7 +43,6 @@ import Text.DocTemplates (Val(..), Context(..), FromContext(..))
 import Text.Pandoc.Walk
 import Text.Pandoc.Writers.HTML (writeHtml5String)
 import Text.Pandoc.Writers.Math (texMathToInlines)
-import Text.Pandoc.XML (toHtml5Entities)
 import Data.Coerce (coerce)
 
 type Notes = [[Block]]
@@ -204,16 +203,6 @@ escapeText opts = T.pack . go . T.unpack
        '~' | isEnabled Ext_subscript opts ||
              isEnabled Ext_strikeout opts -> '\\':'~':go cs
        '$' | isEnabled Ext_tex_math_dollars opts -> '\\':'$':go cs
-       '\'' | isEnabled Ext_smart opts -> '\\':'\'':go cs
-       '"' | isEnabled Ext_smart opts -> '\\':'"':go cs
-       '-' | isEnabled Ext_smart opts ->
-              case cs of
-                   '-':_ -> '\\':'-':go cs
-                   _     -> '-':go cs
-       '.' | isEnabled Ext_smart opts ->
-              case cs of
-                   '.':'.':rest -> '\\':'.':'.':'.':go rest
-                   _            -> '.':go cs
        _   -> case cs of
                 '_':x:xs
                   | isEnabled Ext_intraword_underscores opts
@@ -996,20 +985,10 @@ inlineToTiddlyWiki opts (SmallCaps lst) = do
      else inlineListToTiddlyWiki opts $ capitalize lst
 inlineToTiddlyWiki opts (Quoted SingleQuote lst) = do
   contents <- inlineListToTiddlyWiki opts lst
-  return $ if isEnabled Ext_smart opts
-              then "'" <> contents <> "'"
-              else
-                if writerPreferAscii opts
-                   then "&lsquo;" <> contents <> "&rsquo;"
-                   else "‘" <> contents <> "’"
+  return $ "‘" <> contents <> "’"
 inlineToTiddlyWiki opts (Quoted DoubleQuote lst) = do
   contents <- inlineListToTiddlyWiki opts lst
-  return $ if isEnabled Ext_smart opts
-              then "\"" <> contents <> "\""
-              else
-                if writerPreferAscii opts
-                   then "&ldquo;" <> contents <> "&rdquo;"
-                   else "“" <> contents <> "”"
+  return $ "“" <> contents <> "”"
 inlineToTiddlyWiki opts (Code attr str) = do
   let tickGroups = filter (T.any (== '`')) $ T.group str
   let longest    = if null tickGroups
@@ -1023,13 +1002,7 @@ inlineToTiddlyWiki opts (Code attr str) = do
   return $ literal
     (marker <> spacer <> str <> spacer <> marker) <> attrs
 inlineToTiddlyWiki opts (Str str) = do
-  let str' = (if writerPreferAscii opts
-                 then toHtml5Entities
-                 else id) .
-             (if isEnabled Ext_smart opts
-                 then unsmartify opts
-                 else id) .
-             (escapeText opts) $ str
+  let str' = (escapeText opts) $ str
   return $ literal str'
 inlineToTiddlyWiki opts (Math InlineMath str) =
   case writerHTMLMathMethod opts of
