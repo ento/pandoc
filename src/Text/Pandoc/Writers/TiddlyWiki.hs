@@ -200,8 +200,7 @@ escapeText opts = T.pack . go . T.unpack
               '\\':c:go cs
        '|' | isEnabled Ext_pipe_tables opts -> '\\':'|':go cs
        '^' | isEnabled Ext_superscript opts -> '\\':'^':go cs
-       '~' | isEnabled Ext_subscript opts ||
-             isEnabled Ext_strikeout opts -> '\\':'~':go cs
+       '~' -> "<$text text='~'/>" ++ go cs
        '$' | isEnabled Ext_tex_math_dollars opts -> '\\':'$':go cs
        _   -> case cs of
                 '_':x:xs
@@ -965,20 +964,7 @@ inlineToTiddlyWiki _ (Subscript []) = return empty
 inlineToTiddlyWiki opts (Subscript lst) =
   local (\env -> env {envEscapeSpaces = True}) $ do
     contents <- inlineListToTiddlyWiki opts lst
-    if isEnabled Ext_subscript opts
-       then return $ "~" <> contents <> "~"
-       else if isEnabled Ext_raw_html opts
-                then return $ "<sub>" <> contents <> "</sub>"
-                else
-                  case traverse toSubscriptInline lst of
-                    Just xs' | not (writerPreferAscii opts)
-                      -> inlineListToTiddlyWiki opts xs'
-                    _ -> do
-                      let rendered = render Nothing contents
-                      return $
-                        case mapM toSuperscript (T.unpack rendered) of
-                           Just r  -> literal $ T.pack r
-                           Nothing -> literal $ "_(" <> rendered <> ")"
+    return $ ",," <> contents <> ",,"
 inlineToTiddlyWiki opts (SmallCaps lst) = do
   if (isEnabled Ext_raw_html opts || isEnabled Ext_native_spans opts)
      then inlineToTiddlyWiki opts (Span ("",["smallcaps"],[]) lst)
@@ -1129,14 +1115,6 @@ lineBreakToSpace :: Inline -> Inline
 lineBreakToSpace LineBreak = Space
 lineBreakToSpace SoftBreak = Space
 lineBreakToSpace x         = x
-
-toSubscriptInline :: Inline -> Maybe Inline
-toSubscriptInline Space = Just Space
-toSubscriptInline (Span attr ils) = Span attr <$> traverse toSubscriptInline ils
-toSubscriptInline (Str s) = Str . T.pack <$> traverse toSubscript (T.unpack s)
-toSubscriptInline LineBreak = Just LineBreak
-toSubscriptInline SoftBreak = Just SoftBreak
-toSubscriptInline _ = Nothing
 
 toSuperscriptInline :: Inline -> Maybe Inline
 toSuperscriptInline Space = Just Space
