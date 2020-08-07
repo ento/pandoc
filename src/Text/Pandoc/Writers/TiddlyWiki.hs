@@ -129,13 +129,7 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   toc <- if writerTableOfContents opts
          then blockToTiddlyWiki opts ( toTableOfContents opts blocks )
          else return mempty
-  -- Strip off final 'references' header if markdown citations enabled
-  let blocks' = if isEnabled Ext_citations opts
-                   then case reverse blocks of
-                             (Div ("refs",_,_) _):xs -> reverse xs
-                             _                       -> blocks
-                   else blocks
-  body <- blockListToTiddlyWiki opts blocks'
+  body <- blockListToTiddlyWiki opts blocks
   notesAndRefs' <- notesAndRefs opts
   let main = body <> notesAndRefs'
   let context  = -- for backwards compatibility we populate toc
@@ -207,12 +201,6 @@ escapeText opts = T.pack . go . T.unpack
        '>' | isEnabled Ext_all_symbols_escapable opts ->
               '\\' : '>' : go cs
            | otherwise -> "&gt;" ++ go cs
-       '@' | isEnabled Ext_citations opts ->
-               case cs of
-                    (d:_)
-                      | isAlphaNum d || d == '_'
-                         -> '\\':'@':go cs
-                    _ -> '@':go cs
        _ | c `elem` ['\\','`','*','_','[',']','#'] ->
               '\\':c:go cs
        '|' | isEnabled Ext_pipe_tables opts -> '\\':'|':go cs
@@ -1116,36 +1104,7 @@ inlineToTiddlyWiki opts SoftBreak = do
                 WrapNone     -> space'
                 WrapAuto     -> space'
                 WrapPreserve -> cr
-inlineToTiddlyWiki opts (Cite [] lst) = inlineListToTiddlyWiki opts lst
-inlineToTiddlyWiki opts (Cite (c:cs) lst)
-  | not (isEnabled Ext_citations opts) = inlineListToTiddlyWiki opts lst
-  | otherwise =
-      if citationMode c == AuthorInText
-         then do
-           suffs <- inlineListToTiddlyWiki opts $ citationSuffix c
-           rest <- mapM convertOne cs
-           let inbr = suffs <+> joincits rest
-               br   = if isEmpty inbr then empty else char '[' <> inbr <> char ']'
-           return $ literal ("@" <> citationId c) <+> br
-         else do
-           cits <- mapM convertOne (c:cs)
-           return $ literal "[" <> joincits cits <> literal "]"
-  where
-        joincits = hcat . intersperse (literal "; ") . filter (not . isEmpty)
-        convertOne Citation { citationId      = k
-                            , citationPrefix  = pinlines
-                            , citationSuffix  = sinlines
-                            , citationMode    = m }
-                               = do
-           pdoc <- inlineListToTiddlyWiki opts pinlines
-           sdoc <- inlineListToTiddlyWiki opts sinlines
-           let k' = literal (modekey m <> "@" <> k)
-               r = case sinlines of
-                        Str (T.uncons -> Just (y,_)):_ | y `elem` (",;]@" :: String) -> k' <> sdoc
-                        _                                         -> k' <+> sdoc
-           return $ pdoc <+> r
-        modekey SuppressAuthor = "-"
-        modekey _              = ""
+inlineToTiddlyWiki opts (Cite _ lst) = inlineListToTiddlyWiki opts lst
 inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
   | isEnabled Ext_raw_html opts &&
     not (isEnabled Ext_link_attributes opts) &&
