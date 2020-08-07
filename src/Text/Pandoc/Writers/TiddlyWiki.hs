@@ -322,9 +322,7 @@ blockToTiddlyWiki' opts (Plain inlines) = do
             , beginsWithOrderedListMarker t
               -> RawInline (Format "tiddlywiki") (escapeMarker t):ys
           (Str t:_)
-            | t == "+" || t == "-" ||
-              (t == "%" && isEnabled Ext_pandoc_title_block opts &&
-                isEnabled Ext_all_symbols_escapable opts)
+            | t == "+" || t == "-"
               -> RawInline (Format "tiddlywiki") "\\" : inlines
           _ -> inlines
   contents <- inlineListToTiddlyWiki opts inlines'
