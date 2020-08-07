@@ -370,9 +370,7 @@ blockToTiddlyWiki' opts b@(RawBlock f str) = do
               | otherwise -> renderEmpty
       | f `elem` ["latex", "tex"] =
           case () of
-            _ | isEnabled Ext_raw_tex opts ->
-                  return $ literal str <> literal "\n"
-              | isEnabled Ext_raw_attribute opts -> rawAttribBlock fmt
+            _ | isEnabled Ext_raw_attribute opts -> rawAttribBlock fmt
               | otherwise -> renderEmpty
       | otherwise = renderEmpty
 blockToTiddlyWiki' _opts HorizontalRule =
@@ -997,8 +995,7 @@ inlineToTiddlyWiki opts il@(RawInline f str) = do
                 | otherwise -> renderEmpty
       | f `elem` ["latex", "tex"] =
             case () of
-              _ | isEnabled Ext_raw_tex opts -> return $ literal str
-                | isEnabled Ext_raw_attribute opts -> rawAttribInline fmt numticks
+              _ | isEnabled Ext_raw_attribute opts -> rawAttribInline fmt numticks
                 | otherwise -> renderEmpty
       | otherwise = renderEmpty
 inlineToTiddlyWiki _ LineBreak = do
