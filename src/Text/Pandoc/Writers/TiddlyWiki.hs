@@ -19,7 +19,7 @@ TiddlyWiki:  <https://tiddlywiki.com/>
 module Text.Pandoc.Writers.TiddlyWiki ( writeTiddlyWiki ) where
 import Control.Monad.Reader
 import Control.Monad.State.Strict
-import Data.Char (isAlphaNum)
+import Data.Char (isAlphaNum, isSpace)
 import Data.Default
 import Data.List (find, intersperse, sortBy, transpose)
 import qualified Data.Map as M
@@ -227,6 +227,22 @@ attrsToTiddlyWiki attribs = braces $ hsep [attribId, attribClasses, attribKeys]
               escAttrChar '"'  = literal "\\\""
               escAttrChar '\\' = literal "\\\\"
               escAttrChar c    = literal $ T.singleton c
+
+styleAttrsToTiddlyWiki :: Attr -> Doc Text
+styleAttrsToTiddlyWiki attribs =
+  hcat $
+  intersperse ";" $
+  filter (not . isEmpty) [attribStyle, attribClasses]
+  where attribClasses = case attribs of
+                          (_,[],_) -> empty
+                          (_,cs,_) -> hsep $ map (literal . ("."<>)) cs
+        attribStyle = case attribs of
+                       (_,_,[]) -> empty
+                       (_,_,ks) ->
+                         case find (\(k,_) -> k == "style") ks of
+                           Just (_,style) -> literal $
+                             T.pack . filter (not . isSpace) . T.unpack $ style
+                           Nothing -> empty
 
 linkAttributes :: WriterOptions -> Attr -> Doc Text
 linkAttributes opts attr =
@@ -870,26 +886,15 @@ isRight (Left  _) = False
 
 -- | Convert Pandoc inline element to tiddlywiki.
 inlineToTiddlyWiki :: PandocMonad m => WriterOptions -> Inline -> MD m (Doc Text)
-inlineToTiddlyWiki opts (Span ("",["emoji"],kvs) [Str s]) =
-  case lookup "data-emoji" kvs of
-       Just emojiname | isEnabled Ext_emoji opts ->
-            return $ ":" <> literal emojiname <> ":"
-       _ -> inlineToTiddlyWiki opts (Str s)
 inlineToTiddlyWiki opts (Span attrs ils) = do
   contents <- inlineListToTiddlyWiki opts ils
-  return $ render' contents
-  where
-    render' contents
-      | attrs == nullAttr = contents
-      | isEnabled Ext_bracketed_spans opts =
-          let attrs' = if attrs /= nullAttr
-                       then attrsToTiddlyWiki attrs
-                       else empty
-          in "[" <> contents <> "]" <> attrs'
-      | isEnabled Ext_raw_html opts ||
-        isEnabled Ext_native_spans opts =
-          tagWithAttrs "span" attrs <> contents <> literal "</span>"
-      | otherwise = contents
+  return $
+    if attrs == nullAttr
+    then contents
+    else let attrs' = if attrs /= nullAttr
+                      then styleAttrsToTiddlyWiki attrs <> space
+                      else empty
+         in "@@" <> attrs' <> contents <> "@@"
 inlineToTiddlyWiki _ (Emph []) = return empty
 inlineToTiddlyWiki opts (Emph lst) = do
   contents <- inlineListToTiddlyWiki opts lst
