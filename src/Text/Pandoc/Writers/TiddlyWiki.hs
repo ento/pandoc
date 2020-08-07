@@ -177,16 +177,12 @@ noteToTiddlyWiki :: PandocMonad m => WriterOptions -> Int -> [Block] -> MD m (Do
 noteToTiddlyWiki opts num blocks = do
   contents  <- blockListToTiddlyWiki opts blocks
   let num' = literal $ writerIdentifierPrefix opts <> tshow num
-  let marker = if isEnabled Ext_footnotes opts
-                  then literal "[^" <> num' <> literal "]:"
-                  else literal "[" <> num' <> literal "]"
+  let marker = literal "[" <> num' <> literal "]"
   let markerSize = 4 + offset num'
   let spacer = case writerTabStop opts - markerSize of
                      n | n > 0  -> literal $ T.replicate n " "
                      _ -> literal " "
-  return $ if isEnabled Ext_footnotes opts
-              then hang (writerTabStop opts) (marker <> spacer) contents
-              else marker <> spacer <> contents
+  return $ marker <> spacer <> contents
 
 -- | Escape special characters for TiddlyWiki.
 escapeText :: WriterOptions -> Text -> Text
@@ -1158,9 +1154,7 @@ inlineToTiddlyWiki opts (Note contents) = do
   modify (\st -> st{ stNotes = contents : stNotes st })
   st <- get
   let ref = literal $ writerIdentifierPrefix opts <> tshow (stNoteNum st + (length $ stNotes st) - 1)
-  if isEnabled Ext_footnotes opts
-     then return $ "[^" <> ref <> "]"
-     else return $ "[" <> ref <> "]"
+  return $ "[" <> ref <> "]"
 
 lineBreakToSpace :: Inline -> Inline
 lineBreakToSpace LineBreak = Space
