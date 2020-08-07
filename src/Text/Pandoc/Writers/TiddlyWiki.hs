@@ -199,7 +199,7 @@ escapeText opts = T.pack . go . T.unpack
        _ | c `elem` ['\\','`','*','_','[',']','#'] ->
               '\\':c:go cs
        '|' | isEnabled Ext_pipe_tables opts -> '\\':'|':go cs
-       '^' | isEnabled Ext_superscript opts -> '\\':'^':go cs
+       '^' -> "<$text text='^'/>" ++ go cs
        '~' -> "<$text text='~'/>" ++ go cs
        '$' | isEnabled Ext_tex_math_dollars opts -> '\\':'$':go cs
        _   -> case cs of
@@ -946,20 +946,7 @@ inlineToTiddlyWiki _ (Superscript []) = return empty
 inlineToTiddlyWiki opts (Superscript lst) =
   local (\env -> env {envEscapeSpaces = True}) $ do
     contents <- inlineListToTiddlyWiki opts lst
-    if isEnabled Ext_superscript opts
-       then return $ "^" <> contents <> "^"
-       else if isEnabled Ext_raw_html opts
-                then return $ "<sup>" <> contents <> "</sup>"
-                else
-                  case traverse toSuperscriptInline lst of
-                    Just xs' | not (writerPreferAscii opts)
-                      -> inlineListToTiddlyWiki opts xs'
-                    _ -> do
-                      let rendered = render Nothing contents
-                      return $
-                        case mapM toSuperscript (T.unpack rendered) of
-                           Just r  -> literal $ T.pack r
-                           Nothing -> literal $ "^(" <> rendered <> ")"
+    return $ "^^" <> contents <> "^^"
 inlineToTiddlyWiki _ (Subscript []) = return empty
 inlineToTiddlyWiki opts (Subscript lst) =
   local (\env -> env {envEscapeSpaces = True}) $ do
@@ -1115,11 +1102,3 @@ lineBreakToSpace :: Inline -> Inline
 lineBreakToSpace LineBreak = Space
 lineBreakToSpace SoftBreak = Space
 lineBreakToSpace x         = x
-
-toSuperscriptInline :: Inline -> Maybe Inline
-toSuperscriptInline Space = Just Space
-toSuperscriptInline (Span attr ils) = Span attr <$> traverse toSuperscriptInline ils
-toSuperscriptInline (Str s) = Str . T.pack <$> traverse toSuperscript (T.unpack s)
-toSuperscriptInline LineBreak = Just LineBreak
-toSuperscriptInline SoftBreak = Just SoftBreak
-toSuperscriptInline _ = Nothing
