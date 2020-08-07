@@ -201,7 +201,7 @@ escapeText opts = T.pack . go . T.unpack
        '|' | isEnabled Ext_pipe_tables opts -> '\\':'|':go cs
        '^' -> "<$text text='^'/>" ++ go cs
        '~' -> "<$text text='~'/>" ++ go cs
-       '$' | isEnabled Ext_tex_math_dollars opts -> '\\':'$':go cs
+       '$' | isEnabled Ext_tex_math_dollars opts -> "<$text text='$'/>" ++ go cs
        _   -> case cs of
                 '_':x:xs
                   | isEnabled Ext_intraword_underscores opts
@@ -978,7 +978,7 @@ inlineToTiddlyWiki opts (Math InlineMath str) =
        WebTeX url -> inlineToTiddlyWiki opts
                        (Image nullAttr [Str str] (url <> T.pack (urlEncode $ T.unpack str), str))
        _ | isEnabled Ext_tex_math_dollars opts ->
-             return $ "$" <> literal str <> "$"
+             return $ "$$" <> literal str <> "$$"
          | otherwise -> do
              texMathToInlines InlineMath str >>=
                inlineListToTiddlyWiki opts . id
