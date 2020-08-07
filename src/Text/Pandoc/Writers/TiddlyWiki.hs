@@ -324,7 +324,7 @@ blockToTiddlyWiki' opts (Div attrs ils) = do
                 contents <> blankline <> "</div>" <> blankline
            | otherwise -> contents <> blankline
        where (id',classes',kvs') = attrs
-             attrs' = (id',classes',("markdown","1"):kvs')
+             attrs' = (id',classes',("tiddlywiki","1"):kvs')
 blockToTiddlyWiki' opts (Plain inlines) = do
   -- escape if para starts with ordered list marker
   let escapeMarker = T.concatMap $ \x -> if x `elemText` ".()"
@@ -338,12 +338,12 @@ blockToTiddlyWiki' opts (Plain inlines) = do
           (Str t:ys)
             | (null ys || startsWithSpace ys)
             , beginsWithOrderedListMarker t
-              -> RawInline (Format "markdown") (escapeMarker t):ys
+              -> RawInline (Format "tiddlywiki") (escapeMarker t):ys
           (Str t:_)
             | t == "+" || t == "-" ||
               (t == "%" && isEnabled Ext_pandoc_title_block opts &&
                 isEnabled Ext_all_symbols_escapable opts)
-              -> RawInline (Format "markdown") "\\" : inlines
+              -> RawInline (Format "tiddlywiki") "\\" : inlines
           _ -> inlines
   contents <- inlineListToTiddlyWiki opts inlines'
   return $ contents <> cr
@@ -557,8 +557,8 @@ addTiddlyWikiAttribute s =
   case span isTagText $ reverse $ parseTags s of
        (xs,(TagOpen t attrs:rest)) ->
             renderTags' $ reverse rest ++ (TagOpen t attrs' : reverse xs)
-              where attrs' = ("markdown","1"):[(x,y) | (x,y) <- attrs,
-                                 x /= "markdown"]
+              where attrs' = ("tiddlywiki","1"):[(x,y) | (x,y) <- attrs,
+                                 x /= "tiddlywiki"]
        _ -> s
 
 pipeTable :: PandocMonad m
@@ -762,7 +762,7 @@ blockListToTiddlyWiki opts blocks = do
       isListBlock _                  = False
       commentSep  = if isEnabled Ext_raw_html opts
                     then RawBlock "html" "<!-- -->\n"
-                    else RawBlock "markdown" "&nbsp;\n"
+                    else RawBlock "tiddlywiki" "&nbsp;\n"
   mapM (blockToTiddlyWiki opts) (fixBlocks blocks) >>= return . mconcat
 
 getKey :: Doc Text -> Key
