@@ -937,11 +937,7 @@ inlineToTiddlyWiki opts (Strong lst) = do
 inlineToTiddlyWiki _ (Strikeout []) = return empty
 inlineToTiddlyWiki opts (Strikeout lst) = do
   contents <- inlineListToTiddlyWiki opts lst
-  return $ if isEnabled Ext_strikeout opts
-              then "~~" <> contents <> "~~"
-              else if isEnabled Ext_raw_html opts
-                       then "<s>" <> contents <> "</s>"
-                       else contents
+  return $ "~~" <> contents <> "~~"
 inlineToTiddlyWiki _ (Superscript []) = return empty
 inlineToTiddlyWiki opts (Superscript lst) =
   local (\env -> env {envEscapeSpaces = True}) $ do
