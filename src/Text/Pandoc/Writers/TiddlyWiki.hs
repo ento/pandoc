@@ -414,15 +414,7 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
   contents <- inlineListToTiddlyWiki opts $
                  -- ensure no newlines; see #3736
                  walk lineBreakToSpace $ inlines
-  let setext = writerSetextHeaders opts
-      hdr = nowrap $ case level of
-            1 | setext ->
-                  contents <> attr' <> cr <> literal (T.replicate (offset contents) "=") <>
-                  blankline
-            2 | setext ->
-                  contents <> attr' <> cr <> literal (T.replicate (offset contents) "-") <>
-                  blankline
-            _ -> literal (T.replicate level "!") <> space <> contents <> attr' <> blankline
+  let hdr = nowrap $ literal (T.replicate level "!") <> space <> contents <> attr' <> blankline
 
   return $ refs <> hdr
 blockToTiddlyWiki' opts (CodeBlock attribs str) = return $
