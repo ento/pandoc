@@ -49,10 +49,10 @@ type Notes = [[Block]]
 type Ref   = (Text, Target, Attr)
 type Refs  = [Ref]
 
-type MD m = ReaderT WriterEnv (StateT WriterState m)
+type TW m = ReaderT WriterEnv (StateT WriterState m)
 
-evalMD :: PandocMonad m => MD m a -> WriterEnv -> WriterState -> m a
-evalMD md env st = evalStateT (runReaderT md env) st
+evalTW :: PandocMonad m => TW m a -> WriterEnv -> WriterState -> m a
+evalTW md env st = evalStateT (runReaderT md env) st
 
 data WriterEnv = WriterEnv { envInList          :: Bool
                            , envBlockLevel      :: Int
@@ -88,7 +88,7 @@ instance Default WriterState
 -- | Convert Pandoc to TiddlyWiki.
 writeTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> m Text
 writeTiddlyWiki opts document =
-  evalMD (pandocToTiddlyWiki opts document) def def
+  evalTW (pandocToTiddlyWiki opts document) def def
 
 tiddlyWikiFieldsBlock :: Context Text -> Doc Text
 tiddlyWikiFieldsBlock (Context hashmap) =
@@ -111,7 +111,7 @@ tiddlyWikiFieldsBlock (Context hashmap) =
         removeBlankLines x            = x
 
 -- | Return tiddlywiki representation of document.
-pandocToTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> MD m Text
+pandocToTiddlyWiki :: PandocMonad m => WriterOptions -> Pandoc -> TW m Text
 pandocToTiddlyWiki opts (Pandoc meta blocks) = do
   let colwidth = if writerWrapText opts == WrapAuto
                     then Just $ writerColumns opts
@@ -145,14 +145,14 @@ pandocToTiddlyWiki opts (Pandoc meta blocks) = do
        Just tpl -> renderTemplate tpl context
 
 -- | Return tiddlywiki representation of reference key table.
-refsToTiddlyWiki :: PandocMonad m => WriterOptions -> Refs -> MD m (Doc Text)
+refsToTiddlyWiki :: PandocMonad m => WriterOptions -> Refs -> TW m (Doc Text)
 refsToTiddlyWiki opts refs = mapM (keyToTiddlyWiki opts) refs >>= return . vcat
 
 -- | Return tiddlywiki representation of a reference key.
 keyToTiddlyWiki :: PandocMonad m
               => WriterOptions
               -> Ref
-              -> MD m (Doc Text)
+              -> TW m (Doc Text)
 keyToTiddlyWiki opts (label', (src, tit), attr) = do
   let tit' = if T.null tit
                 then empty
@@ -162,7 +162,7 @@ keyToTiddlyWiki opts (label', (src, tit), attr) = do
             <+> linkAttributes opts attr
 
 -- | Return tiddlywiki representation of notes.
-notesToTiddlyWiki :: PandocMonad m => WriterOptions -> [[Block]] -> MD m (Doc Text)
+notesToTiddlyWiki :: PandocMonad m => WriterOptions -> [[Block]] -> TW m (Doc Text)
 notesToTiddlyWiki opts notes = do
   n <- gets stNoteNum
   notes' <- zipWithM (noteToTiddlyWiki opts) [n..] notes
@@ -170,7 +170,7 @@ notesToTiddlyWiki opts notes = do
   return $ vsep notes'
 
 -- | Return tiddlywiki representation of a note.
-noteToTiddlyWiki :: PandocMonad m => WriterOptions -> Int -> [Block] -> MD m (Doc Text)
+noteToTiddlyWiki :: PandocMonad m => WriterOptions -> Int -> [Block] -> TW m (Doc Text)
 noteToTiddlyWiki opts num blocks = do
   contents  <- blockListToTiddlyWiki opts blocks
   let num' = literal $ writerIdentifierPrefix opts <> tshow num
@@ -266,7 +266,7 @@ beginsWithOrderedListMarker str =
          Left  _ -> False
          Right _ -> True
 
-notesAndRefs :: PandocMonad m => WriterOptions -> MD m (Doc Text)
+notesAndRefs :: PandocMonad m => WriterOptions -> TW m (Doc Text)
 notesAndRefs opts = do
   notes' <- gets stNotes >>= notesToTiddlyWiki opts . reverse
   modify $ \s -> s { stNotes = [] }
@@ -288,7 +288,7 @@ notesAndRefs opts = do
 blockToTiddlyWiki :: PandocMonad m
                 => WriterOptions -- ^ Options
                 -> Block         -- ^ Block element
-                -> MD m (Doc Text)
+                -> TW m (Doc Text)
 blockToTiddlyWiki opts blk =
   local (\env -> env {envBlockLevel = envBlockLevel env + 1}) $
   do doc <- blockToTiddlyWiki' opts blk
@@ -300,7 +300,7 @@ blockToTiddlyWiki opts blk =
 blockToTiddlyWiki' :: PandocMonad m
                  => WriterOptions -- ^ Options
                  -> Block         -- ^ Block element
-                 -> MD m (Doc Text)
+                 -> TW m (Doc Text)
 blockToTiddlyWiki' _ Null = return empty
 blockToTiddlyWiki' opts (Div attrs ils) = do
   contents <- blockListToTiddlyWiki opts ils
@@ -514,7 +514,7 @@ blockToTiddlyWiki' opts (DefinitionList items) = do
   contents <- inList $ mapM (definitionListItemToTiddlyWiki opts) items
   return $ mconcat contents
 
-inList :: Monad m => MD m a -> MD m a
+inList :: Monad m => TW m a -> TW m a
 inList p = local (\env -> env {envInList = True}) p
 
 addTiddlyWikiAttribute :: Text -> Text
@@ -528,7 +528,7 @@ addTiddlyWikiAttribute s =
 
 pipeTable :: PandocMonad m
           => Bool -> [Alignment] -> [Doc Text] -> [[Doc Text]]
-          -> MD m (Doc Text)
+          -> TW m (Doc Text)
 pipeTable headless aligns rawHeaders rawRows = do
   let sp = literal " "
   let blockFor AlignLeft   x y = lblock (x + 2) (sp <> y) <> lblock 0 empty
@@ -558,7 +558,7 @@ pipeTable headless aligns rawHeaders rawRows = do
 
 pandocTable :: PandocMonad m
             => WriterOptions -> Bool -> Bool -> [Alignment] -> [Double]
-            -> [Doc Text] -> [[Doc Text]] -> MD m (Doc Text)
+            -> [Doc Text] -> [[Doc Text]] -> TW m (Doc Text)
 pandocTable opts multiline headless aligns widths rawHeaders rawRows = do
   let isSimple = all (==0) widths
   let alignHeader alignment = case alignment of
@@ -618,7 +618,7 @@ itemEndsWithTightList bs =
         _                           -> False
 
 -- | Convert bullet list item (list of blocks) to tiddlywiki.
-bulletListItemToTiddlyWiki :: PandocMonad m => WriterOptions -> [Block] -> MD m (Doc Text)
+bulletListItemToTiddlyWiki :: PandocMonad m => WriterOptions -> [Block] -> TW m (Doc Text)
 bulletListItemToTiddlyWiki opts bs = do
   let exts = writerExtensions opts
   contents <- blockListToTiddlyWiki opts $ taskListItemToAscii exts bs
@@ -635,7 +635,7 @@ orderedListItemToTiddlyWiki :: PandocMonad m
                           => WriterOptions -- ^ options
                           -> Text        -- ^ list item marker
                           -> [Block]       -- ^ list item (list of blocks)
-                          -> MD m (Doc Text)
+                          -> TW m (Doc Text)
 orderedListItemToTiddlyWiki opts marker bs = do
   let exts = writerExtensions opts
   contents <- blockListToTiddlyWiki opts $ taskListItemToAscii exts bs
@@ -656,7 +656,7 @@ orderedListItemToTiddlyWiki opts marker bs = do
 definitionListItemToTiddlyWiki :: PandocMonad m
                              => WriterOptions
                              -> ([Inline],[[Block]])
-                             -> MD m (Doc Text)
+                             -> TW m (Doc Text)
 definitionListItemToTiddlyWiki opts (label, defs) = do
   labelText <- blockToTiddlyWiki opts (Plain label)
   defs' <- mapM (mapM (blockToTiddlyWiki opts)) defs
@@ -673,7 +673,7 @@ definitionListItemToTiddlyWiki opts (label, defs) = do
 blockListToTiddlyWiki :: PandocMonad m
                     => WriterOptions -- ^ Options
                     -> [Block]       -- ^ List of block elements
-                    -> MD m (Doc Text)
+                    -> TW m (Doc Text)
 blockListToTiddlyWiki opts blocks = do
   inlist <- asks envInList
   -- a) insert comment between list and indented code block, or the
@@ -722,7 +722,7 @@ findUsableIndex lbls i = if (tshow i) `elem` lbls
                          then findUsableIndex lbls (i + 1)
                          else i
 
-getNextIndex :: PandocMonad m => MD m Int
+getNextIndex :: PandocMonad m => TW m Int
 getNextIndex = do
   prevRefs <- gets stPrevRefs
   refs <- gets stRefs
@@ -733,7 +733,7 @@ getNextIndex = do
 
 -- | Get reference for target; if none exists, create unique one and return.
 --   Prefer label if possible; otherwise, generate a unique key.
-getReference :: PandocMonad m => Attr -> Doc Text -> Target -> MD m Text
+getReference :: PandocMonad m => Attr -> Doc Text -> Target -> TW m Text
 getReference attr label target = do
   refs <- gets stRefs
   case find (\(_,t,a) -> t == target && a == attr) refs of
@@ -784,7 +784,7 @@ getReference attr label target = do
                     return lab'
 
 -- | Convert list of Pandoc inline elements to tiddlywiki.
-inlineListToTiddlyWiki :: PandocMonad m => WriterOptions -> [Inline] -> MD m (Doc Text)
+inlineListToTiddlyWiki :: PandocMonad m => WriterOptions -> [Inline] -> TW m (Doc Text)
 inlineListToTiddlyWiki opts lst = do
   inlist <- asks envInList
   go (if inlist then avoidBadWrapsInList lst else lst)
@@ -853,7 +853,7 @@ isRight (Right _) = True
 isRight (Left  _) = False
 
 -- | Convert Pandoc inline element to tiddlywiki.
-inlineToTiddlyWiki :: PandocMonad m => WriterOptions -> Inline -> MD m (Doc Text)
+inlineToTiddlyWiki :: PandocMonad m => WriterOptions -> Inline -> TW m (Doc Text)
 inlineToTiddlyWiki opts (Span attrs ils) = do
   contents <- inlineListToTiddlyWiki opts ils
   return $
