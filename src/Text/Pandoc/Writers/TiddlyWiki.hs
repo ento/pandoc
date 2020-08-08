@@ -29,7 +29,6 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Network.HTTP (urlEncode)
-import Text.HTML.TagSoup (Tag (..), isTagText, parseTags)
 import Text.Pandoc.Class.PandocMonad (PandocMonad, report)
 import Text.Pandoc.Definition
 import Text.Pandoc.Logging
@@ -309,13 +308,7 @@ blockToTiddlyWiki' opts (Div attrs ils) = do
               isEnabled Ext_markdown_in_html_blocks opts) ->
                 tagWithAttrs "div" attrs <> blankline <>
                 contents <> blankline <> "</div>" <> blankline
-           | isEnabled Ext_raw_html opts &&
-             isEnabled Ext_markdown_attribute opts ->
-                tagWithAttrs "div" attrs' <> blankline <>
-                contents <> blankline <> "</div>" <> blankline
            | otherwise -> contents <> blankline
-       where (id',classes',kvs') = attrs
-             attrs' = (id',classes',("tiddlywiki","1"):kvs')
 blockToTiddlyWiki' opts (Plain inlines) = do
   -- escape if para starts with ordered list marker
   let escapeMarker = T.concatMap $ \x -> if x `elemText` ".()"
@@ -368,9 +361,7 @@ blockToTiddlyWiki' opts b@(RawBlock f str) = do
       | isEnabled Ext_raw_attribute opts = rawAttribBlock fmt
       | f `elem` ["html", "html5", "html4"] =
           case () of
-            _ | isEnabled Ext_markdown_attribute opts ->
-                return $ literal (addTiddlyWikiAttribute str) <> literal "\n"
-              | isEnabled Ext_raw_html opts ->
+            _ | isEnabled Ext_raw_html opts ->
                 return $ literal str <> literal "\n"
               | isEnabled Ext_raw_attribute opts -> rawAttribBlock fmt
               | otherwise -> renderEmpty
@@ -508,15 +499,6 @@ blockToTiddlyWiki' opts (DefinitionList items) = do
 
 inList :: Monad m => TW m a -> TW m a
 inList p = local (\env -> env {envInList = True}) p
-
-addTiddlyWikiAttribute :: Text -> Text
-addTiddlyWikiAttribute s =
-  case span isTagText $ reverse $ parseTags s of
-       (xs,(TagOpen t attrs:rest)) ->
-            renderTags' $ reverse rest ++ (TagOpen t attrs' : reverse xs)
-              where attrs' = ("tiddlywiki","1"):[(x,y) | (x,y) <- attrs,
-                                 x /= "tiddlywiki"]
-       _ -> s
 
 pipeTable :: PandocMonad m
           => Bool -> [Alignment] -> [Doc Text] -> [[Doc Text]]
