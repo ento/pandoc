@@ -417,26 +417,18 @@ blockToTiddlyWiki' opts (Header level attr inlines) = do
   let hdr = nowrap $ literal (T.replicate level "!") <> space <> contents <> attr' <> blankline
 
   return $ refs <> hdr
-blockToTiddlyWiki' opts (CodeBlock attribs str) = return $
-  case attribs == nullAttr of
-     False | isEnabled Ext_backtick_code_blocks opts ->
-          backticks <> attrs <> cr <> literal str <> cr <> backticks <> blankline
-           | isEnabled Ext_fenced_code_blocks opts ->
-          tildes <> attrs <> cr <> literal str <> cr <> tildes <> blankline
-     _ -> nest (writerTabStop opts) (literal str) <> blankline
-   where endline c = literal $ case [T.length ln
+blockToTiddlyWiki' _ (CodeBlock attribs str) = return $
+  backticks <> attrs <> cr <> literal str <> cr <> backticks <> blankline
+  where endline c = literal $ case [T.length ln
                                    | ln <- map trim (T.lines str)
                                    , T.pack [c,c,c] `T.isPrefixOf` ln
                                    , T.all (== c) ln] of
                                [] -> T.replicate 3 $ T.singleton c
                                xs -> T.replicate (maximum xs + 1) $ T.singleton c
-         backticks = endline '`'
-         tildes = endline '~'
-         attrs  = if isEnabled Ext_fenced_code_attributes opts
-                     then nowrap $ " " <> attrsToTiddlyWiki attribs
-                     else case attribs of
-                                (_,(cls:_),_) -> " " <> literal cls
-                                _             -> empty
+        backticks = endline '`'
+        attrs  = case attribs of
+                   (_,(cls:_),_) -> " " <> literal cls
+                   _             -> empty
 blockToTiddlyWiki' opts (BlockQuote blocks) = do
   let leader = "> "
   contents <- blockListToTiddlyWiki opts blocks
