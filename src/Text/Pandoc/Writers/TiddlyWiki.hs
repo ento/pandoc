@@ -512,7 +512,7 @@ blockToTiddlyWiki' opts (OrderedList (start,_,_) items) = do
   return $ (if isTightList items then vcat else vsep) contents <> blankline
 blockToTiddlyWiki' opts (DefinitionList items) = do
   contents <- inList $ mapM (definitionListItemToTiddlyWiki opts) items
-  return $ mconcat contents <> blankline
+  return $ mconcat contents
 
 inList :: Monad m => MD m a -> MD m a
 inList p = local (\env -> env {envInList = True}) p
@@ -660,30 +660,14 @@ definitionListItemToTiddlyWiki :: PandocMonad m
 definitionListItemToTiddlyWiki opts (label, defs) = do
   labelText <- blockToTiddlyWiki opts (Plain label)
   defs' <- mapM (mapM (blockToTiddlyWiki opts)) defs
-  if isEnabled Ext_definition_lists opts
-     then do
-       let tabStop = writerTabStop opts
-       let leader  = ":  "
-       let sps = case writerTabStop opts - 3 of
-                      n | n > 0   -> literal $ T.replicate n " "
-                      _ -> literal " "
-       let isTight = case defs of
-                        ((Plain _ : _): _) -> True
-                        _                  -> False
-       if isEnabled Ext_compact_definition_lists opts
-          then do
-            let contents = vcat $ map (\d -> hang tabStop (leader <> sps)
-                                $ vcat d <> cr) defs'
-            return $ nowrap labelText <> cr <> contents <> cr
-          else do
-            let contents = (if isTight then vcat else vsep) $ map
-                            (\d -> hang tabStop (leader <> sps) $ vcat d)
-                            defs'
-            return $ blankline <> nowrap labelText $$
-                     (if isTight then empty else blankline) <> contents <> blankline
-     else
-       return $ nowrap (chomp labelText <> literal "  " <> cr) <>
-                vsep (map vsep defs') <> blankline
+  return $ ": " <> nowrap labelText <> cr <> vcat (map renderDef defs') <> cr
+  where renderDef blocks =
+          let
+            contents = vcat blocks
+          in
+            "; " <> if height contents < 2
+                    then contents
+                    else literal "<div>" <> blankline <> contents <> literal "</div>"
 
 -- | Convert list of Pandoc block elements to tiddlywiki.
 blockListToTiddlyWiki :: PandocMonad m
