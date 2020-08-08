@@ -890,9 +890,7 @@ inlineToTiddlyWiki opts (Subscript lst) =
     contents <- inlineListToTiddlyWiki opts lst
     return $ ",," <> contents <> ",,"
 inlineToTiddlyWiki opts (SmallCaps lst) = do
-  if (isEnabled Ext_raw_html opts || isEnabled Ext_native_spans opts)
-     then inlineToTiddlyWiki opts (Span ("",["smallcaps"],[]) lst)
-     else inlineListToTiddlyWiki opts $ capitalize lst
+  inlineToTiddlyWiki opts (Span ("",["smallcaps"],[]) lst)
 inlineToTiddlyWiki opts (Quoted SingleQuote lst) = do
   contents <- inlineListToTiddlyWiki opts lst
   return $ "‘" <> contents <> "’"
