@@ -153,13 +153,12 @@ keyToTiddlyWiki :: PandocMonad m
               => WriterOptions
               -> Ref
               -> TW m (Doc Text)
-keyToTiddlyWiki opts (label', (src, tit), attr) = do
+keyToTiddlyWiki _ (label', (src, tit), _) = do
   let tit' = if T.null tit
                 then empty
                 else space <> "\"" <> literal tit <> "\""
   return $ nest 2 $ hang 2
             ("[" <> literal label' <> "]:" <> space) (literal src <> tit')
-            <+> linkAttributes opts attr
 
 -- | Return tiddlywiki representation of notes.
 notesToTiddlyWiki :: PandocMonad m => WriterOptions -> [[Block]] -> TW m (Doc Text)
@@ -243,12 +242,6 @@ styleAttrsToTiddlyWiki attribs =
                            Just (_,style) -> literal $
                              T.pack . filter (not . isSpace) . T.unpack $ style
                            Nothing -> empty
-
-linkAttributes :: WriterOptions -> Attr -> Doc Text
-linkAttributes opts attr =
-  if isEnabled Ext_link_attributes opts && attr /= nullAttr
-     then attrsToTiddlyWiki attr
-     else empty
 
 -- | Ordered list start parser for use in Para below.
 olMarker :: Parser Text ParserState ()
@@ -346,7 +339,6 @@ blockToTiddlyWiki' opts (Plain inlines) = do
 -- title beginning with fig: indicates figure
 blockToTiddlyWiki' opts (Para [Image attr alt (src,tgt@(T.stripPrefix "fig:" -> Just tit))])
   | isEnabled Ext_raw_html opts &&
-    not (isEnabled Ext_link_attributes opts) &&
     attr /= nullAttr = -- use raw HTML
     ((<> blankline) . literal . T.strip) <$>
       writeHtml5String opts{ writerTemplate = Nothing }
@@ -961,7 +953,6 @@ inlineToTiddlyWiki opts SoftBreak = do
 inlineToTiddlyWiki opts (Cite _ lst) = inlineListToTiddlyWiki opts lst
 inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
   | isEnabled Ext_raw_html opts &&
-    not (isEnabled Ext_link_attributes opts) &&
     attr /= nullAttr = -- use raw HTML
     (literal . T.strip) <$>
       writeHtml5String opts{ writerTemplate = Nothing } (Pandoc nullMeta [Plain [lnk]])
@@ -988,11 +979,9 @@ inlineToTiddlyWiki opts lnk@(Link attr txt (src, tit))
                                            else "[" <> reftext <> "]"
                            in  first <> second
                       else "[" <> linktext <> "](" <>
-                           literal src <> linktitle <> ")" <>
-                           linkAttributes opts attr
+                           literal src <> linktitle <> ")"
 inlineToTiddlyWiki opts img@(Image attr alternate (source, tit))
   | isEnabled Ext_raw_html opts &&
-    not (isEnabled Ext_link_attributes opts) &&
     attr /= nullAttr = -- use raw HTML
     (literal . T.strip) <$>
       writeHtml5String opts{ writerTemplate = Nothing } (Pandoc nullMeta [Plain [img]])
