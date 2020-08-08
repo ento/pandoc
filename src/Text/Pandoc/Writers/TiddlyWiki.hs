@@ -915,18 +915,8 @@ inlineToTiddlyWiki opts (Quoted SingleQuote lst) = do
 inlineToTiddlyWiki opts (Quoted DoubleQuote lst) = do
   contents <- inlineListToTiddlyWiki opts lst
   return $ "“" <> contents <> "”"
-inlineToTiddlyWiki opts (Code attr str) = do
-  let tickGroups = filter (T.any (== '`')) $ T.group str
-  let longest    = if null tickGroups
-                     then 0
-                     else maximum $ map T.length tickGroups
-  let marker     = T.replicate (longest + 1) "`"
-  let spacer     = if (longest == 0) then "" else " "
-  let attrs      = if isEnabled Ext_inline_code_attributes opts && attr /= nullAttr
-                      then attrsToTiddlyWiki attr
-                      else empty
-  return $ literal
-    (marker <> spacer <> str <> spacer <> marker) <> attrs
+inlineToTiddlyWiki _ (Code _ str) = do
+  return $ literal ("`" <> str <> "`")
 inlineToTiddlyWiki opts (Str str) = do
   let str' = (escapeText opts) $ str
   return $ literal str'
